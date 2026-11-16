@@ -1,0 +1,348 @@
+/* Sistema visual de PerroCaliente Express: un carrito de perros callejero.
+   Fondo mostaza, toldo de rayas rojas, papel blanco y tinta café. */
+
+:root {
+  --mostaza: #ffc72c;
+  --mostaza-clara: #ffe9a3;
+  --mostaza-oscura: #b97d00;
+  --ketchup: #d62718;
+  --ketchup-oscuro: #a51c10;
+  --pan: #e9a655;
+  --tinta: #2b1407;
+  --tinta-suave: #6a4631;
+  --papel: #fffbf0;
+  --pepinillo: #256b29;
+  --pepinillo-claro: #dff2d8;
+  --linea: rgb(43 20 7 / 0.16);
+
+  --font-display: 'Bagel Fat One', 'Arial Rounded MT Bold', system-ui, sans-serif;
+  --font-body: 'Albert Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --radio-s: 10px;
+  --radio-m: 16px;
+  --radio-l: 24px;
+  /* Sombra dura, como una calcomanía pegada en el carrito. */
+  --sombra-dura: 0 4px 0 var(--tinta);
+  --suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --rebote: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--mostaza);
+  color: var(--tinta);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 3px solid var(--tinta);
+  outline-offset: 3px;
+}
+
+.solo-lectores {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- Botones */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 46px;
+  padding: 0.55rem 1.15rem;
+  border: 2px solid var(--tinta);
+  border-radius: var(--radio-s);
+  background: var(--papel);
+  box-shadow: 0 3px 0 var(--tinta);
+  font-weight: 700;
+  text-decoration: none;
+  transition:
+    transform 0.12s var(--suave),
+    box-shadow 0.12s var(--suave),
+    background-color 0.15s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--mostaza-clara);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 0 0 var(--tinta);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn--principal {
+  background: var(--ketchup);
+  color: #fff;
+}
+
+.btn--principal:hover:not(:disabled) {
+  background: var(--ketchup-oscuro);
+}
+
+.btn--peligro {
+  color: var(--ketchup-oscuro);
+}
+
+.btn--chico {
+  min-height: 40px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.92rem;
+  box-shadow: 0 2px 0 var(--tinta);
+}
+
+.btn--ancho {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------ Formularios */
+
+.campo {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.campo__etiqueta {
+  font-weight: 700;
+}
+
+.campo__ayuda {
+  color: var(--tinta-suave);
+  font-size: 0.9rem;
+}
+
+.campo__control {
+  width: 100%;
+  min-height: 46px;
+  padding: 0.5rem 0.8rem;
+  border: 2px solid var(--tinta);
+  border-radius: var(--radio-s);
+  background: #fff;
+}
+
+.campo__control:disabled {
+  background: #f1eadb;
+  color: var(--tinta-suave);
+}
+
+.campo--casilla {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.campo--casilla input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--ketchup);
+}
+
+.formulario {
+  display: grid;
+  gap: 1rem;
+}
+
+.formulario__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.aviso-error {
+  padding: 0.7rem 0.9rem;
+  border: 2px solid var(--ketchup-oscuro);
+  border-radius: var(--radio-s);
+  background: #ffe7e2;
+  color: var(--ketchup-oscuro);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ Página */
+
+.pagina {
+  width: min(1180px, 100%);
+  margin-inline: auto;
+  padding: 1.75rem 1.25rem 4rem;
+}
+
+.pagina__encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.pagina__titulo {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+
+.pagina__bajada {
+  max-width: 60ch;
+  margin-top: 0.4rem;
+  color: var(--tinta-suave);
+  font-weight: 500;
+}
+
+.hoja {
+  border: 2px solid var(--tinta);
+  border-radius: var(--radio-m);
+  background: var(--papel);
+  box-shadow: var(--sombra-dura);
+}
+
+.etiqueta {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border: 2px solid var(--tinta);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.etiqueta--ok {
+  background: var(--pepinillo-claro);
+  color: var(--pepinillo);
+  border-color: var(--pepinillo);
+}
+
+.etiqueta--apagada {
+  background: #efe6d6;
+  color: var(--tinta-suave);
+  border-color: var(--tinta-suave);
+}
+
+.etiqueta--alerta {
+  background: #ffe7e2;
+  color: var(--ketchup-oscuro);
+  border-color: var(--ketchup-oscuro);
+}
+
+.cifra {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fleco del toldo: rayas rojas y blancas terminadas en ondas. */
+.toldo {
+  height: 16px;
+  background: repeating-linear-gradient(90deg, var(--ketchup) 0 36px, var(--papel) 36px 72px);
+  border-block: 2px solid var(--tinta);
+}
+
+.toldo-ondas {
+  height: 18px;
+  background:
+    radial-gradient(
+      circle at 18px 0,
+      var(--ketchup) 16px,
+      var(--tinta) 16px 18px,
+      transparent 18.5px
+    ),
+    radial-gradient(circle at 54px 0, var(--papel) 16px, var(--tinta) 16px 18px, transparent 18.5px);
+  background-size: 72px 18px;
+  background-repeat: repeat-x;
+}
+
+/* ------------------------------------------------------------ Transiciones */
+
+.vista-enter-active,
+.vista-leave-active {
+  transition:
+    opacity 0.18s var(--suave),
+    transform 0.18s var(--suave);
+}
+
+.vista-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.vista-leave-to {
+  opacity: 0;
+}
+
+.lista-move,
+.lista-enter-active,
+.lista-leave-active {
+  transition:
+    opacity 0.25s var(--suave),
+    transform 0.25s var(--rebote);
+}
+
+.lista-enter-from,
+.lista-leave-to {
+  opacity: 0;
+  transform: scale(0.94);
+}
+
+.lista-leave-active {
+  position: absolute;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

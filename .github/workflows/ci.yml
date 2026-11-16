@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Instalar dependencias (exactamente las del lockfile)
+        run: npm ci
+      - name: Estilo y errores comunes (eslint)
+        run: npm run lint
+      - name: Formato (prettier)
+        run: npm run format:check
+      - name: Pruebas
+        run: npm test
+      - name: Compilar
+        run: npm run build
+      - name: Dependencias con vulnerabilidades conocidas (npm audit)
+        run: npm audit --audit-level=high
+      - name: La imagen de Docker construye
+        run: docker build -t frontend:ci .
