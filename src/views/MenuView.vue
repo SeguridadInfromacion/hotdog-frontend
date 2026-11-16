@@ -7,6 +7,7 @@ import HotdogArt from '../components/HotdogArt.vue'
 import LoadState from '../components/LoadState.vue'
 import ProductForm from '../components/ProductForm.vue'
 import { useAsyncData } from '../composables/useAsyncData'
+import { useConfirmAction } from '../composables/useConfirmAction'
 import { useToastStore } from '../stores/toasts'
 import { formatPrice } from '../utils/format'
 
@@ -15,8 +16,12 @@ const { data: products, isLoading, error, reload } = useAsyncData(() => products
 
 const isFormOpen = ref(false)
 const editing = ref(null)
-const toDelete = ref(null)
-const isDeleting = ref(false)
+
+const removal = useConfirmAction(async (product) => {
+  await productsApi.remove(product.id)
+  toasts.success(`${product.name} eliminado.`)
+  reload()
+})
 
 function openForm(product = null) {
   editing.value = product
@@ -28,21 +33,6 @@ function onSaved(saved) {
   toasts.success(`${saved.name} guardado.`)
   reload()
 }
-
-async function confirmDelete() {
-  const product = toDelete.value
-  isDeleting.value = true
-  try {
-    await productsApi.remove(product.id)
-    toasts.success(`${product.name} eliminado.`)
-    toDelete.value = null
-    reload()
-  } catch (failure) {
-    toasts.error(failure.message)
-  } finally {
-    isDeleting.value = false
-  }
-}
 </script>
 
 <template>
@@ -51,20 +41,25 @@ async function confirmDelete() {
       <div>
         <h1 class="pagina__titulo">Menú</h1>
         <p class="pagina__bajada">
-          Lo que se vende y a cuánto. Los cambios se ven de inmediato en la pantalla de venta.
+          Lo que se vende y a cuánto. Cada caja toma los cambios la próxima vez que abre Vender.
         </p>
       </div>
       <button type="button" class="btn btn--principal" @click="openForm()">Agregar producto</button>
     </header>
 
     <LoadState :is-loading="isLoading" :error="error" @retry="reload">
-      <div v-if="products.length === 0" class="hoja menu__vacio">
-        <p>El menú está vacío. Agrega el primer producto para empezar a vender.</p>
-      </div>
+      <p v-if="products.length === 0" class="hoja hoja--mensaje">
+        El menú está vacío. Agrega el primer producto para empezar a vender.
+      </p>
 
-      <TransitionGroup v-else tag="ul" name="lista" class="menu">
-        <li v-for="(product, index) in products" :key="product.id" class="plato hoja">
-          <HotdogArt class="plato__dibujo" :variant="index" />
+      <TransitionGroup v-else tag="ul" name="lista" class="menu lista-plana">
+        <li
+          v-for="product in products"
+          :key="product.id"
+          class="plato hoja"
+          :class="{ 'plato--agotado': !product.is_available }"
+        >
+          <HotdogArt class="plato__dibujo" :seed="product.id" />
           <div class="plato__texto">
             <h2 class="plato__nombre">{{ product.name }}</h2>
             <p class="plato__descripcion">{{ product.description || 'Sin descripción.' }}</p>
@@ -89,7 +84,7 @@ async function confirmDelete() {
               type="button"
               class="btn btn--chico btn--peligro"
               :aria-label="`Eliminar ${product.name}`"
-              @click="toDelete = product"
+              @click="removal.ask(product)"
             >
               Eliminar
             </button>
@@ -105,13 +100,14 @@ async function confirmDelete() {
       @saved="onSaved"
     />
     <ConfirmDialog
-      :open="toDelete !== null"
+      :open="removal.target.value !== null"
       title="Eliminar producto"
-      :message="`Vas a eliminar «${toDelete?.name ?? ''}» del menú. Las ventas ya registradas no cambian.`"
+      :message="`Vas a eliminar «${removal.target.value?.name ?? ''}» del menú. Las ventas ya registradas no cambian.`"
       confirm-label="Eliminar producto"
-      :busy="isDeleting"
-      @confirm="confirmDelete"
-      @cancel="toDelete = null"
+      :busy="removal.isBusy.value"
+      :error="removal.error.value"
+      @confirm="removal.confirm"
+      @cancel="removal.cancel"
     />
   </div>
 </template>
@@ -121,14 +117,6 @@ async function confirmDelete() {
   position: relative;
   display: grid;
   gap: 1.1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.menu__vacio {
-  padding: 1.5rem;
-  font-weight: 600;
 }
 
 .plato {
@@ -140,6 +128,11 @@ async function confirmDelete() {
   padding: 0.85rem 1.2rem;
 }
 
+.plato__texto {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .plato__nombre {
   font-size: 1.3rem;
 }
@@ -147,6 +140,17 @@ async function confirmDelete() {
 .plato__descripcion {
   color: var(--tinta-suave);
   font-size: 0.95rem;
+}
+
+/* Un agotado se reconoce de un vistazo, no solo por la etiqueta. */
+.plato--agotado .plato__dibujo {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.plato--agotado .plato__nombre,
+.plato--agotado .plato__precio {
+  color: var(--tinta-suave);
 }
 
 .plato__precio {

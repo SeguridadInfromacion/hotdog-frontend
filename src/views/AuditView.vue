@@ -1,26 +1,30 @@
 <script setup>
 import { computed, ref } from 'vue'
 
-import { fetchAuditTrail } from '../api'
+import { AUDIT_SOURCES, fetchAuditTrail } from '../api'
 import LoadState from '../components/LoadState.vue'
 import { useAsyncData } from '../composables/useAsyncData'
-import { describeAction, formatDateTime, isAlertAction } from '../utils/format'
+import { describeAction, formatPreciseDateTime, isAlertAction } from '../utils/format'
 
 const ALL = 'Todo'
 
-const { data, isLoading, error, reload } = useAsyncData(fetchAuditTrail, {
+const { data, isLoading, isRefreshing, error, reload } = useAsyncData(fetchAuditTrail, {
   entries: [],
   unavailable: [],
 })
 
 const filter = ref(ALL)
-const filters = [ALL, 'Usuarios', 'Menú', 'Ventas']
+const filters = [ALL, ...AUDIT_SOURCES.map((source) => source.service)]
 
 const visibleEntries = computed(() =>
   filter.value === ALL
     ? data.value.entries
     : data.value.entries.filter((entry) => entry.service === filter.value),
 )
+
+// La bitácora no expone ids: la combinación de sus datos identifica cada fila.
+const rowKey = (entry, index) =>
+  `${entry.service}|${entry.occurred_at}|${entry.actor}|${entry.action}|${index}`
 </script>
 
 <template>
@@ -33,11 +37,13 @@ const visibleEntries = computed(() =>
           borrar desde la aplicación.
         </p>
       </div>
-      <button type="button" class="btn" :disabled="isLoading" @click="reload">Actualizar</button>
+      <button type="button" class="btn" :disabled="isRefreshing" @click="reload">
+        {{ isRefreshing ? 'Actualizando…' : 'Actualizar' }}
+      </button>
     </header>
 
     <LoadState :is-loading="isLoading" :error="error" @retry="reload">
-      <p v-if="data.unavailable.length" class="aviso-error" role="alert">
+      <p v-if="data.unavailable.length" class="aviso-error aviso-parcial" role="alert">
         No respondió la bitácora de: {{ data.unavailable.join(', ') }}. Se muestra lo demás.
       </p>
 
@@ -54,7 +60,7 @@ const visibleEntries = computed(() =>
         </button>
       </div>
 
-      <p v-if="visibleEntries.length === 0" class="hoja sin-registros">
+      <p v-if="visibleEntries.length === 0" class="hoja hoja--mensaje">
         No hay registros para mostrar.
       </p>
 
@@ -71,8 +77,8 @@ const visibleEntries = computed(() =>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(entry, index) in visibleEntries" :key="index">
-              <td class="cifra tabla__fecha">{{ formatDateTime(entry.occurred_at) }}</td>
+            <tr v-for="(entry, index) in visibleEntries" :key="rowKey(entry, index)">
+              <td class="cifra tabla__fija">{{ formatPreciseDateTime(entry.occurred_at) }}</td>
               <td>
                 <span class="etiqueta">{{ entry.service }}</span>
               </td>
@@ -84,7 +90,7 @@ const visibleEntries = computed(() =>
                 <template v-else>{{ describeAction(entry.action) }}</template>
               </td>
               <td class="tabla__detalle">{{ entry.target }}</td>
-              <td class="cifra">{{ entry.ip }}</td>
+              <td class="cifra tabla__fija">{{ entry.ip }}</td>
             </tr>
           </tbody>
         </table>
@@ -94,19 +100,19 @@ const visibleEntries = computed(() =>
 </template>
 
 <style scoped>
+.aviso-parcial {
+  margin-bottom: 1rem;
+}
+
 .filtros {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  margin-block: 0 1.25rem;
-}
-
-.aviso-error + .filtros {
-  margin-top: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .filtro {
-  min-height: 42px;
+  min-height: 44px;
   padding: 0.35rem 1rem;
   border: 2px solid var(--tinta);
   border-radius: 999px;
@@ -119,18 +125,14 @@ const visibleEntries = computed(() =>
   color: var(--mostaza);
 }
 
-.sin-registros {
-  padding: 1.5rem;
-  font-weight: 600;
-}
-
+/* En pantallas angostas la tabla se desliza de lado dentro de su marco. */
 .tabla-marco {
   overflow-x: auto;
 }
 
 .tabla {
   width: 100%;
-  min-width: 760px;
+  min-width: 860px;
   border-collapse: collapse;
   font-size: 0.95rem;
 }
@@ -153,12 +155,12 @@ const visibleEntries = computed(() =>
   border-top: 1px solid var(--linea);
 }
 
-.tabla__fecha {
+.tabla__fija {
   white-space: nowrap;
 }
 
 .tabla__detalle {
-  max-width: 34ch;
+  min-width: 16rem;
   overflow-wrap: anywhere;
   color: var(--tinta-suave);
 }

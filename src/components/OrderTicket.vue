@@ -1,5 +1,7 @@
 <script setup>
 // La comanda: el pedido que se está armando, con forma de tirilla de caja.
+// La lista de renglones se desplaza por dentro; el total y el botón de
+// registrar siempre quedan a la vista, por largo que sea el pedido.
 import { MAX_QUANTITY, useCartStore } from '../stores/cart'
 import { formatPrice } from '../utils/format'
 
@@ -7,7 +9,7 @@ defineProps({
   busy: { type: Boolean, default: false },
 })
 const customerName = defineModel('customerName', { type: String, default: '' })
-defineEmits(['charge'])
+defineEmits(['charge', 'clear'])
 
 const cart = useCartStore()
 </script>
@@ -16,85 +18,96 @@ const cart = useCartStore()
   <section id="pedido" class="comanda" aria-labelledby="comanda-titulo">
     <h2 id="comanda-titulo" class="comanda__titulo">Pedido</h2>
 
-    <p v-if="cart.isEmpty" class="comanda__vacia">
-      Toca un perro del menú para agregarlo al pedido.
-    </p>
+    <div class="comanda__cuerpo">
+      <p v-if="cart.isEmpty" class="comanda__vacia">
+        Toca un perro del menú para agregarlo al pedido.
+      </p>
 
-    <TransitionGroup v-else tag="ul" name="lista" class="comanda__renglones">
-      <li v-for="line in cart.lines" :key="line.product.id" class="renglon">
-        <div class="renglon__texto">
-          <span class="renglon__nombre">{{ line.product.name }}</span>
-          <span class="renglon__subtotal cifra">
-            {{ formatPrice(line.product.price * line.quantity) }}
-          </span>
-        </div>
-        <div class="renglon__cantidad">
-          <button
-            type="button"
-            class="paso"
-            :aria-label="`Quitar un ${line.product.name}`"
-            @click="cart.decrement(line.product.id)"
-          >
-            −
-          </button>
-          <span class="renglon__numero cifra" aria-live="polite">{{ line.quantity }}</span>
-          <button
-            type="button"
-            class="paso"
-            :aria-label="`Agregar otro ${line.product.name}`"
-            :disabled="line.quantity >= MAX_QUANTITY"
-            @click="cart.add(line.product)"
-          >
-            +
-          </button>
-        </div>
-      </li>
-    </TransitionGroup>
-
-    <label class="campo comanda__cliente">
-      <span class="campo__etiqueta">Nombre del cliente (opcional)</span>
-      <input
-        v-model.trim="customerName"
-        class="campo__control"
-        type="text"
-        maxlength="60"
-        autocomplete="off"
-        placeholder="Para llamarlo cuando esté listo"
-      />
-    </label>
-
-    <div class="comanda__total">
-      <span>Total</span>
-      <strong :key="cart.total" class="comanda__valor cifra">{{ formatPrice(cart.total) }}</strong>
+      <TransitionGroup v-else tag="ul" name="lista" class="comanda__renglones">
+        <li v-for="line in cart.lines" :key="line.product.id" class="renglon">
+          <div class="renglon__texto">
+            <span class="renglon__nombre">{{ line.product.name }}</span>
+            <span class="renglon__subtotal cifra">
+              {{ formatPrice(line.product.price * line.quantity) }}
+            </span>
+          </div>
+          <div class="renglon__cantidad">
+            <button
+              type="button"
+              class="paso"
+              :aria-label="`Quitar un ${line.product.name}`"
+              :disabled="busy"
+              @click="cart.decrement(line.product.id)"
+            >
+              −
+            </button>
+            <span class="renglon__numero cifra">
+              <span class="solo-lectores">Cantidad: </span>{{ line.quantity }}
+            </span>
+            <button
+              type="button"
+              class="paso"
+              :aria-label="`Agregar otro ${line.product.name}`"
+              :title="line.quantity >= MAX_QUANTITY ? `Máximo ${MAX_QUANTITY} por producto` : null"
+              :disabled="busy || line.quantity >= MAX_QUANTITY"
+              @click="cart.add(line.product)"
+            >
+              +
+            </button>
+          </div>
+        </li>
+      </TransitionGroup>
     </div>
 
-    <button
-      type="button"
-      class="btn btn--principal btn--ancho comanda__cobrar"
-      :disabled="cart.isEmpty || busy"
-      @click="$emit('charge')"
-    >
-      {{ busy ? 'Registrando…' : 'Registrar venta' }}
-    </button>
-    <button
-      v-if="!cart.isEmpty"
-      type="button"
-      class="comanda__vaciar"
-      :disabled="busy"
-      @click="cart.clear()"
-    >
-      Vaciar pedido
-    </button>
+    <div class="comanda__pie">
+      <label class="campo">
+        <span class="campo__etiqueta">Nombre del cliente (opcional)</span>
+        <input
+          v-model.trim="customerName"
+          class="campo__control"
+          type="text"
+          maxlength="60"
+          autocomplete="off"
+          placeholder="Para llamarlo cuando esté listo"
+          :disabled="busy"
+        />
+      </label>
+
+      <div class="comanda__total">
+        <span>Total</span>
+        <strong :key="cart.total" class="comanda__valor cifra">
+          {{ formatPrice(cart.total) }}
+        </strong>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn--principal btn--ancho comanda__cobrar"
+        :disabled="cart.isEmpty || busy"
+        @click="$emit('charge')"
+      >
+        {{ busy ? 'Registrando…' : 'Registrar venta' }}
+      </button>
+      <button
+        v-if="!cart.isEmpty"
+        type="button"
+        class="comanda__vaciar"
+        :disabled="busy"
+        @click="$emit('clear')"
+      >
+        Vaciar pedido
+      </button>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .comanda {
   --diente: 12px;
-  position: relative;
-  display: grid;
-  gap: 1rem;
-  padding: 1.3rem 1.25rem calc(1.4rem + var(--diente));
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.2rem 1.25rem calc(1.2rem + var(--diente));
   background: #fff;
   /* Borde inferior en zigzag, como una tirilla recién arrancada. */
   clip-path: polygon(
@@ -122,17 +135,26 @@ const cart = useCartStore()
     5% 100%,
     0 calc(100% - var(--diente))
   );
-  filter: drop-shadow(0 4px 0 var(--tinta));
 }
 
 .comanda__titulo {
-  padding-bottom: 0.7rem;
+  padding-bottom: 0.6rem;
   border-bottom: 2px dashed var(--tinta);
   font-size: 1.8rem;
 }
 
+/* Lo único que crece y se desplaza cuando el pedido es largo. */
+.comanda__cuerpo {
+  flex: 1;
+  min-height: 3.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline: -0.5rem;
+  padding-inline: 0.5rem;
+}
+
 .comanda__vacia {
-  padding: 1.2rem 0;
+  padding: 0.6rem 0;
   color: var(--tinta-suave);
   font-weight: 600;
 }
@@ -140,15 +162,15 @@ const cart = useCartStore()
 .comanda__renglones {
   position: relative;
   display: grid;
-  gap: 0.75rem;
+  gap: 0.6rem;
   margin: 0;
-  padding: 0;
+  padding: 0.15rem 0;
   list-style: none;
 }
 
 .renglon {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
@@ -157,6 +179,7 @@ const cart = useCartStore()
 .renglon__texto {
   display: grid;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .renglon__nombre {
@@ -170,7 +193,7 @@ const cart = useCartStore()
 .renglon__cantidad {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .renglon__numero {
@@ -182,8 +205,8 @@ const cart = useCartStore()
 .paso {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border: 2px solid var(--tinta);
   border-radius: 50%;
   background: var(--mostaza);
@@ -202,11 +225,16 @@ const cart = useCartStore()
   cursor: not-allowed;
 }
 
+.comanda__pie {
+  display: grid;
+  gap: 0.8rem;
+}
+
 .comanda__total {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding-top: 0.9rem;
+  padding-top: 0.7rem;
   border-top: 2px dashed var(--tinta);
   font-weight: 700;
 }
@@ -225,7 +253,7 @@ const cart = useCartStore()
 
 .comanda__vaciar {
   justify-self: center;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0.2rem 0.8rem;
   border: 0;
   background: none;

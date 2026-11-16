@@ -8,23 +8,12 @@ import { createApp } from 'vue'
 import { setSessionExpiredHandler } from './api/http'
 import App from './App.vue'
 import { router } from './router'
-import { useAuthStore } from './stores/auth'
-import { useCartStore } from './stores/cart'
-import { useToastStore } from './stores/toasts'
+import { handleExpiredSession } from './session'
 
 const app = createApp(App)
 app.use(createPinia())
 app.use(router)
 
-// Si el servidor responde 401 a mitad de trabajo, la sesión venció:
-// se limpia el estado local y se vuelve a la pantalla de entrada.
-setSessionExpiredHandler(() => {
-  const auth = useAuthStore()
-  if (!auth.user) return
-  auth.clear()
-  useCartStore().clear()
-  useToastStore().error('Tu sesión venció. Entra de nuevo para continuar.')
-  router.replace({ name: 'login' })
-})
+setSessionExpiredHandler(handleExpiredSession)
 
 app.mount('#app')

@@ -13,7 +13,7 @@ defineEmits(['retry'])
     <p>{{ error }}</p>
     <button type="button" class="btn" @click="$emit('retry')">Reintentar</button>
   </div>
-  <p v-else-if="isLoading" class="estado estado--cargando" aria-live="polite">Cargando…</p>
+  <p v-else-if="isLoading" class="estado estado--cargando">Cargando…</p>
   <slot v-else />
 </template>
 
@@ -31,14 +31,13 @@ defineEmits(['retry'])
 }
 
 .estado--cargando {
-  color: var(--tinta-suave);
   font-weight: 700;
   animation: latir 1.1s ease-in-out infinite alternate;
 }
 
 @keyframes latir {
   to {
-    opacity: 0.45;
+    opacity: 0.7;
   }
 }
 </style>

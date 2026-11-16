@@ -1,18 +1,26 @@
 <script setup>
-// Ilustración del perro caliente. La salsa cambia de color según la variante
-// y puede "dibujarse" con una animación (se usa una sola vez, en la entrada).
-defineProps({
-  variant: { type: Number, default: 0 },
+// Ilustración del perro caliente. El color de la salsa sale del "seed" (el id del
+// producto): cada producto conserva siempre el mismo dibujo, en cualquier pantalla.
+import { computed } from 'vue'
+
+const props = defineProps({
+  seed: { type: String, default: '' },
+  // Dibuja la salsa con una animación (se usa una sola vez, en la entrada).
   drawSauce: { type: Boolean, default: false },
 })
 
 const SAUCES = ['mostaza', 'mayonesa', 'guacamole', 'rosada']
+
+const sauce = computed(() => {
+  const sum = [...props.seed].reduce((total, char) => total + char.charCodeAt(0), 0)
+  return SAUCES[sum % SAUCES.length]
+})
 </script>
 
 <template>
   <svg
     class="perro"
-    :class="[`perro--${SAUCES[variant % SAUCES.length]}`, { 'perro--dibujar': drawSauce }]"
+    :class="[`perro--${sauce}`, { 'perro--dibujar': drawSauce }]"
     viewBox="0 0 220 120"
     aria-hidden="true"
     focusable="false"

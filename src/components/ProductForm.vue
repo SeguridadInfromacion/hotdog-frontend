@@ -1,7 +1,8 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { reactive, watch } from 'vue'
 
 import { productsApi } from '../api'
+import { useSaveForm } from '../composables/useSaveForm'
 import BaseModal from './BaseModal.vue'
 
 const props = defineProps({
@@ -11,11 +12,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['close', 'saved'])
 
+// Los mismos límites que valida el servidor (products-service).
+const LIMITS = { nameMax: 60, descriptionMax: 200, priceMin: 100, priceMax: 1_000_000 }
 const EMPTY = { name: '', description: '', price: null, is_available: true }
 
 const form = reactive({ ...EMPTY })
-const error = ref('')
-const isSaving = ref(false)
+const { isSaving, error, save, reset } = useSaveForm()
 
 watch(
   () => props.open,
@@ -23,24 +25,17 @@ watch(
     if (!isOpen) return
     const { name, description, price, is_available } = props.product ?? EMPTY
     Object.assign(form, { name, description, price, is_available })
-    error.value = ''
+    reset()
   },
 )
 
-async function save() {
-  error.value = ''
-  isSaving.value = true
-  const data = { ...form, price: Math.round(Number(form.price)) }
-  try {
-    const saved = props.product
-      ? await productsApi.update(props.product.id, data)
-      : await productsApi.create(data)
-    emit('saved', saved)
-  } catch (failure) {
-    error.value = failure.message
-  } finally {
-    isSaving.value = false
-  }
+async function submit() {
+  const saved = await save(() =>
+    props.product
+      ? productsApi.update(props.product.id, { ...form })
+      : productsApi.create({ ...form }),
+  )
+  if (saved) emit('saved', saved)
 }
 </script>
 
@@ -48,45 +43,59 @@ async function save() {
   <BaseModal
     :open="open"
     :title="product ? 'Editar producto' : 'Agregar producto'"
+    :closable="!isSaving"
+    :close-on-backdrop="false"
     @close="emit('close')"
   >
-    <form class="formulario" @submit.prevent="save">
-      <label class="campo">
-        <span class="campo__etiqueta">Nombre</span>
+    <form class="formulario" @submit.prevent="submit">
+      <div class="campo">
+        <label class="campo__etiqueta" for="producto-nombre">Nombre</label>
         <input
+          id="producto-nombre"
           v-model.trim="form.name"
           class="campo__control"
           type="text"
           required
-          minlength="2"
-          maxlength="60"
+          pattern=".*\S.*\S.*"
+          title="Escribe al menos 2 letras."
+          :maxlength="LIMITS.nameMax"
           autocomplete="off"
+          autofocus
         />
-      </label>
-      <label class="campo">
-        <span class="campo__etiqueta">Descripción</span>
+      </div>
+      <div class="campo">
+        <label class="campo__etiqueta" for="producto-descripcion">Descripción</label>
         <input
+          id="producto-descripcion"
           v-model.trim="form.description"
           class="campo__control"
           type="text"
-          maxlength="200"
+          :maxlength="LIMITS.descriptionMax"
           autocomplete="off"
+          aria-describedby="producto-descripcion-ayuda"
         />
-        <span class="campo__ayuda">Qué trae. Se muestra en la pantalla de venta.</span>
-      </label>
-      <label class="campo">
-        <span class="campo__etiqueta">Precio en pesos</span>
+        <span id="producto-descripcion-ayuda" class="campo__ayuda">
+          Qué trae. Se muestra en la pantalla de venta.
+        </span>
+      </div>
+      <div class="campo">
+        <label class="campo__etiqueta" for="producto-precio">Precio en pesos</label>
         <input
+          id="producto-precio"
           v-model.number="form.price"
           class="campo__control"
           type="number"
           inputmode="numeric"
           required
-          min="100"
-          max="1000000"
-          step="100"
+          :min="LIMITS.priceMin"
+          :max="LIMITS.priceMax"
+          step="1"
+          aria-describedby="producto-precio-ayuda"
         />
-      </label>
+        <span id="producto-precio-ayuda" class="campo__ayuda">
+          Sin puntos ni centavos, desde $ 100. Por ejemplo: 12000
+        </span>
+      </div>
       <label class="campo campo--casilla">
         <input v-model="form.is_available" type="checkbox" />
         <span class="campo__etiqueta">Disponible para la venta</span>
@@ -95,7 +104,9 @@ async function save() {
       <p v-if="error" class="aviso-error" role="alert">{{ error }}</p>
 
       <div class="formulario__acciones">
-        <button type="button" class="btn" @click="emit('close')">Cancelar</button>
+        <button type="button" class="btn" :disabled="isSaving" @click="emit('close')">
+          Cancelar
+        </button>
         <button type="submit" class="btn btn--principal" :disabled="isSaving">
           {{ isSaving ? 'Guardando…' : 'Guardar producto' }}
         </button>

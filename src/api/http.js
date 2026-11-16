@@ -6,6 +6,8 @@
 
 const CSRF_HEADER = { 'X-Requested-With': 'XMLHttpRequest' }
 const VALIDATION_PREFIX = 'Value error, '
+const TIMEOUT_MS = 15_000
+const NO_CONTENT = 204
 
 export const MESSAGES = {
   offline: 'No hay conexión con el servidor. Revisa tu red e intenta de nuevo.',
@@ -19,6 +21,20 @@ export class ApiError extends Error {
     this.name = 'ApiError'
     this.status = status
   }
+
+  /** La petición no llegó o no se supo si llegó (sin red, tiempo agotado). */
+  get isNetworkFailure() {
+    return this.status === 0
+  }
+
+  get isSessionExpired() {
+    return this.status === 401
+  }
+}
+
+/** Mensaje apto para mostrar: nunca el texto técnico de un error inesperado. */
+export function userMessage(failure) {
+  return failure instanceof ApiError ? failure.message : MESSAGES.generic
 }
 
 let onSessionExpired = () => {}
@@ -49,16 +65,22 @@ async function request(method, path, { body, expectSession = true } = {}) {
       credentials: 'same-origin',
       headers: { ...CSRF_HEADER, ...(hasBody && { 'Content-Type': 'application/json' }) },
       body: hasBody ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
   } catch {
     throw new ApiError(0, MESSAGES.offline)
   }
 
-  const payload = response.status === 204 ? null : await response.json().catch(() => null)
-  if (response.ok) return payload
+  if (response.status === NO_CONTENT) return null
+  const payload = await response.json().catch(() => undefined)
 
-  if (response.status === 401 && expectSession) onSessionExpired()
-  throw new ApiError(response.status, messageFrom(payload))
+  if (!response.ok) {
+    if (response.status === 401 && expectSession) onSessionExpired()
+    throw new ApiError(response.status, messageFrom(payload))
+  }
+  // Un 200 que no trae JSON no es una respuesta de nuestra API: no se usa.
+  if (payload === undefined) throw new ApiError(response.status, MESSAGES.generic)
+  return payload
 }
 
 export const http = {

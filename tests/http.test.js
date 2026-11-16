@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { ApiError, http, MESSAGES, messageFrom, setSessionExpiredHandler } from '../src/api/http'
+import {
+  ApiError,
+  http,
+  MESSAGES,
+  messageFrom,
+  setSessionExpiredHandler,
+  userMessage,
+} from '../src/api/http'
 
 function respondWith(status, body) {
   const response = new Response(body === undefined ? null : JSON.stringify(body), { status })
@@ -34,6 +41,17 @@ describe('messageFrom', () => {
   })
 })
 
+describe('userMessage', () => {
+  it('muestra el mensaje de un error de la API', () => {
+    expect(userMessage(new ApiError(409, 'Ya existe.'))).toBe('Ya existe.')
+  })
+
+  it('nunca muestra el texto técnico de un error inesperado', () => {
+    const bug = new TypeError("Cannot read properties of null (reading 'map')")
+    expect(userMessage(bug)).toBe(MESSAGES.generic)
+  })
+})
+
 describe('http', () => {
   it('envía la cabecera anti-CSRF y las cookies solo al mismo origen', async () => {
     respondWith(200, [])
@@ -46,6 +64,14 @@ describe('http', () => {
     expect(options.body).toBe('{"name":"Perro"}')
   })
 
+  it('pone un tiempo máximo de espera a cada petición', async () => {
+    respondWith(200, [])
+
+    await http.get('/api/products')
+
+    expect(fetch.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+  })
+
   it('convierte un error de la API en ApiError con su estado', async () => {
     respondWith(409, { detail: 'Ya hay un producto con ese nombre.' })
 
@@ -56,14 +82,29 @@ describe('http', () => {
     expect(failure.message).toBe('Ya hay un producto con ese nombre.')
   })
 
+  it('devuelve null en una respuesta sin contenido', async () => {
+    respondWith(204)
+    expect(await http.delete('/api/products/1')).toBeNull()
+  })
+
+  it('no acepta un 200 que no trae JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 200 })))
+
+    const failure = await http.get('/api/products').catch((error) => error)
+
+    expect(failure).toBeInstanceOf(ApiError)
+    expect(failure.message).toBe(MESSAGES.generic)
+  })
+
   it('avisa que la sesión venció cuando llega un 401', async () => {
     const onExpired = vi.fn()
     setSessionExpiredHandler(onExpired)
     respondWith(401, { detail: 'Debes iniciar sesión.' })
 
-    await http.get('/api/orders').catch(() => {})
+    const failure = await http.get('/api/orders').catch((error) => error)
 
     expect(onExpired).toHaveBeenCalledOnce()
+    expect(failure.isSessionExpired).toBe(true)
   })
 
   it('no trata un login fallido como sesión vencida', async () => {
@@ -76,11 +117,12 @@ describe('http', () => {
     expect(onExpired).not.toHaveBeenCalled()
   })
 
-  it('explica cuando no hay conexión', async () => {
+  it('explica cuando no hay conexión o se agota el tiempo', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
 
     const failure = await http.get('/api/orders').catch((error) => error)
 
     expect(failure.message).toBe(MESSAGES.offline)
+    expect(failure.isNetworkFailure).toBe(true)
   })
 })

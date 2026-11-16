@@ -21,26 +21,33 @@ Documentación general: [hotdog-docs](https://github.com/SeguridadInfromacion/ho
 
 - **El navegador no guarda el token.** La sesión es una cookie `HttpOnly` que el
   JavaScript no puede leer. No hay nada en `localStorage`.
-- **Sin XSS.** Todo el texto pasa por las plantillas de Vue, que lo escapan. El
-  linter prohíbe `v-html` y `eval`.
+- **Defensa contra XSS.** Todo el texto pasa por las plantillas de Vue, que lo
+  escapan. El linter prohíbe `v-html` y `eval`, y la CSP del gateway es la segunda barrera.
 - **Compatible con una CSP estricta.** Sin scripts ni estilos en línea, sin CDN:
   las fuentes van empaquetadas.
 - **Cabecera anti-CSRF** en todas las peticiones (`src/api/http.js`).
 - **Las guardas de ruta son comodidad, no seguridad.** Ocultar un botón no
   protege nada: cada permiso lo decide el servidor en cada petición.
 - **Solo ids y cantidades.** Al vender nunca se envían precios.
-- **La contraseña se borra de memoria** apenas termina el intento de inicio de sesión.
+- **El campo de la contraseña se vacía** apenas termina el intento de inicio de sesión.
+- **Salir limpia todo.** Al cerrar sesión o vencer el token se borran de memoria
+  el usuario, el pedido en curso y los avisos: en una caja compartida, quien
+  entra después no encuentra nada de la persona anterior (`src/session.js`).
+- **Renovación automática.** El token dura 10 minutos y se renueva solo mientras
+  la caja está abierta; si desactivan al usuario, la renovación falla y la
+  sesión se cierra.
 
 ## Estructura
 
 ```
 src/
   api/          llamadas al backend (http.js es la única salida)
+  session.js    cierre de sesión: limpia todo el estado local
   stores/       estado: sesión, pedido en curso, avisos
   router/       rutas y guardas
   views/        una por pantalla
   components/   piezas reutilizables
-  composables/  carga de datos con estados de cargando y error
+  composables/  carga de datos, guardado de formularios y acciones con confirmación
   utils/        formato de precios, fechas y etiquetas
   styles/       sistema visual
 tests/          pruebas unitarias

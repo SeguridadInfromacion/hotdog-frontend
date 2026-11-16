@@ -1,15 +1,21 @@
 <script setup>
-import { computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
+import { signOut } from '../session'
 import { useAuthStore } from '../stores/auth'
 import { useCartStore } from '../stores/cart'
 import { ROLE_LABELS } from '../utils/format'
+import ConfirmDialog from './ConfirmDialog.vue'
 import HotdogArt from './HotdogArt.vue'
 
 const auth = useAuthStore()
 const cart = useCartStore()
-const router = useRouter()
+const route = useRoute()
+
+const nav = ref(null)
+const isConfirmingExit = ref(false)
+const isLeaving = ref(false)
 
 const links = computed(() => [
   { to: { name: 'sell' }, label: 'Vender' },
@@ -23,10 +29,26 @@ const links = computed(() => [
     : []),
 ])
 
-async function logout() {
-  await auth.logout()
-  cart.clear()
-  router.replace({ name: 'login' })
+// En pantallas angostas la navegación se desliza: la sección actual siempre queda a la vista.
+watch(
+  () => route.name,
+  async () => {
+    await nextTick()
+    nav.value
+      ?.querySelector('.router-link-active')
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  },
+)
+
+function requestExit() {
+  // Salir borra el pedido en curso: si hay uno, se pregunta primero.
+  if (cart.isEmpty) leave()
+  else isConfirmingExit.value = true
+}
+
+async function leave() {
+  isLeaving.value = true
+  await signOut()
 }
 </script>
 
@@ -42,7 +64,7 @@ async function logout() {
         <span class="marca__nombre">PerroCaliente Express</span>
       </RouterLink>
 
-      <nav class="navegacion" aria-label="Secciones">
+      <nav ref="nav" class="navegacion" aria-label="Secciones">
         <RouterLink
           v-for="link in links"
           :key="link.label"
@@ -55,14 +77,26 @@ async function logout() {
 
       <div class="usuario">
         <p class="usuario__datos">
-          <strong>{{ auth.user.full_name }}</strong>
-          <span>{{ ROLE_LABELS[auth.user.role] }}</span>
+          <strong>{{ auth.user?.full_name }}</strong>
+          <span>{{ ROLE_LABELS[auth.user?.role] }}</span>
         </p>
-        <button type="button" class="btn btn--chico" @click="logout">Salir</button>
+        <button type="button" class="btn btn--chico" :disabled="isLeaving" @click="requestExit">
+          Salir
+        </button>
       </div>
     </div>
     <div class="toldo"></div>
     <div class="toldo-ondas"></div>
+
+    <ConfirmDialog
+      :open="isConfirmingExit"
+      title="Hay un pedido sin registrar"
+      message="Si sales ahora, el pedido que estás armando se pierde."
+      confirm-label="Salir sin registrar"
+      :busy="isLeaving"
+      @confirm="leave"
+      @cancel="isConfirmingExit = false"
+    />
   </header>
 </template>
 
@@ -77,8 +111,8 @@ async function logout() {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.5rem;
-  padding: 0.7rem 1.25rem;
+  gap: 0.5rem 1.5rem;
+  padding: 0.6rem 1.25rem;
   background: var(--papel);
 }
 
@@ -104,7 +138,6 @@ async function logout() {
   display: flex;
   flex: 1;
   gap: 0.35rem;
-  overflow-x: auto;
   padding: 4px;
 }
 
@@ -134,6 +167,7 @@ async function logout() {
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  margin-left: auto;
 }
 
 .usuario__datos {
@@ -147,22 +181,40 @@ async function logout() {
   font-size: 0.88rem;
 }
 
+/* Cuando no cabe todo en una fila, la navegación baja a su propia fila
+   y se desliza con el dedo, sin barra de desplazamiento a la vista. */
+@media (max-width: 1100px) {
+  .navegacion {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .navegacion::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (max-width: 760px) {
   .cabecera {
     position: static;
   }
 
+  .cabecera__barra {
+    padding: 0.5rem 1rem;
+  }
+
+  .marca__dibujo {
+    width: 44px;
+  }
+
   .marca__nombre {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
 
-  .usuario {
-    margin-left: auto;
-  }
-
-  .navegacion {
-    order: 3;
-    flex-basis: 100%;
+  .usuario__datos span {
+    display: none;
   }
 }
 </style>

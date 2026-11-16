@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { userMessage } from '../api/http'
 import HotdogArt from '../components/HotdogArt.vue'
 import { useAuthStore } from '../stores/auth'
 
@@ -11,6 +12,12 @@ const router = useRouter()
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const passwordInput = ref(null)
+const usernameInput = ref(null)
+
+// El atributo autofocus solo sirve al cargar la página; al volver aquí tras
+// cerrar sesión hay que poner el foco a mano.
+onMounted(() => usernameInput.value?.focus())
 const isSubmitting = ref(false)
 
 async function submit() {
@@ -20,9 +27,10 @@ async function submit() {
     await auth.login(username.value, password.value)
     router.replace({ name: 'sell' })
   } catch (failure) {
-    error.value = failure.message
+    error.value = userMessage(failure)
+    passwordInput.value?.focus()
   } finally {
-    // La contraseña no se queda en memoria más de lo necesario.
+    // El campo de la contraseña se vacía apenas termina el intento.
     password.value = ''
     isSubmitting.value = false
   }
@@ -47,6 +55,7 @@ async function submit() {
         <label class="campo">
           <span class="campo__etiqueta">Usuario</span>
           <input
+            ref="usernameInput"
             v-model.trim="username"
             class="campo__control"
             type="text"
@@ -55,12 +64,12 @@ async function submit() {
             autocomplete="username"
             autocapitalize="none"
             spellcheck="false"
-            autofocus
           />
         </label>
         <label class="campo">
           <span class="campo__etiqueta">Contraseña</span>
           <input
+            ref="passwordInput"
             v-model="password"
             class="campo__control"
             type="password"

@@ -2,6 +2,7 @@
 // Confirmación de la venta con los valores que calculó y guardó el servidor.
 import { formatPrice, formatTime, shortOrderNumber } from '../utils/format'
 import BaseModal from './BaseModal.vue'
+import OrderLines from './OrderLines.vue'
 
 defineProps({
   order: { type: Object, default: null },
@@ -17,18 +18,13 @@ defineEmits(['close'])
           Venta {{ shortOrderNumber(order.id) }}, {{ formatTime(order.created_at) }}
         </p>
         <p v-if="order.customer_name" class="recibo__cliente">Para {{ order.customer_name }}</p>
-        <ul class="recibo__renglones">
-          <li v-for="item in order.items" :key="item.product_name">
-            <span>{{ item.quantity }} × {{ item.product_name }}</span>
-            <span class="cifra">{{ formatPrice(item.line_total) }}</span>
-          </li>
-        </ul>
+        <OrderLines :items="order.items" />
         <p class="recibo__total">
           <span>Total</span>
           <strong class="cifra">{{ formatPrice(order.total) }}</strong>
         </p>
       </div>
-      <button type="button" class="btn btn--principal btn--ancho" @click="$emit('close')">
+      <button type="button" class="btn btn--principal btn--ancho" autofocus @click="$emit('close')">
         Nueva venta
       </button>
     </div>
@@ -61,23 +57,11 @@ defineEmits(['close'])
   font-weight: 700;
 }
 
-.recibo__renglones {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recibo__renglones li,
 .recibo__total {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
-}
-
-.recibo__total {
-  align-items: baseline;
   padding-top: 0.6rem;
   border-top: 2px dashed var(--tinta);
   font-weight: 700;

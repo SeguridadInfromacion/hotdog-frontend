@@ -1,11 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 import { usersApi } from '../api'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import LoadState from '../components/LoadState.vue'
 import UserForm from '../components/UserForm.vue'
 import { useAsyncData } from '../composables/useAsyncData'
+import { useConfirmAction } from '../composables/useConfirmAction'
 import { useAuthStore } from '../stores/auth'
 import { useToastStore } from '../stores/toasts'
 import { ROLE_LABELS } from '../utils/format'
@@ -16,10 +17,31 @@ const { data: users, isLoading, error, reload } = useAsyncData(() => usersApi.li
 
 const isFormOpen = ref(false)
 const editing = ref(null)
-const toToggle = ref(null)
-const isToggling = ref(false)
 
-const isSelf = (user) => user.id === auth.user.id
+const isSelf = (user) => user.id === auth.user?.id
+
+const toggle = useConfirmAction(async (user) => {
+  await usersApi.update(user.id, { is_active: !user.is_active })
+  toasts.success(`Usuario ${user.username} ${user.is_active ? 'desactivado' : 'activado'}.`)
+  reload()
+})
+
+// Los textos del diálogo dependen de si se va a desactivar o a activar.
+const toggleCopy = computed(() => {
+  const user = toggle.target.value
+  if (!user) return { title: '', message: '', confirm: '' }
+  return user.is_active
+    ? {
+        title: 'Desactivar usuario',
+        message: `${user.full_name} no podrá entrar a la caja hasta que lo actives de nuevo.`,
+        confirm: 'Desactivar usuario',
+      }
+    : {
+        title: 'Activar usuario',
+        message: `${user.full_name} podrá volver a entrar a la caja.`,
+        confirm: 'Activar usuario',
+      }
+})
 
 function openForm(user = null) {
   editing.value = user
@@ -28,24 +50,9 @@ function openForm(user = null) {
 
 function onSaved(saved) {
   isFormOpen.value = false
-  if (isSelf(saved)) auth.user = saved
+  auth.updateCurrentUser(saved)
   toasts.success(`Usuario ${saved.username} guardado.`)
   reload()
-}
-
-async function confirmToggle() {
-  const user = toToggle.value
-  isToggling.value = true
-  try {
-    await usersApi.update(user.id, { is_active: !user.is_active })
-    toasts.success(`Usuario ${user.username} ${user.is_active ? 'desactivado' : 'activado'}.`)
-    toToggle.value = null
-    reload()
-  } catch (failure) {
-    toasts.error(failure.message)
-  } finally {
-    isToggling.value = false
-  }
 }
 </script>
 
@@ -55,17 +62,17 @@ async function confirmToggle() {
       <div>
         <h1 class="pagina__titulo">Usuarios</h1>
         <p class="pagina__bajada">
-          Quién puede entrar a la caja y con qué permisos. Un usuario desactivado pierde el acceso
-          de inmediato.
+          Quién puede entrar a la caja y con qué permisos. Un usuario desactivado ya no puede
+          iniciar sesión, y la que tenga abierta se cierra en pocos minutos.
         </p>
       </div>
       <button type="button" class="btn btn--principal" @click="openForm()">Agregar usuario</button>
     </header>
 
     <LoadState :is-loading="isLoading" :error="error" @retry="reload">
-      <ul class="usuarios">
+      <ul class="usuarios lista-plana">
         <li v-for="user in users" :key="user.id" class="persona hoja">
-          <div>
+          <div class="persona__texto">
             <h2 class="persona__nombre">{{ user.full_name }}</h2>
             <p class="persona__usuario">
               {{ user.username }}<template v-if="isSelf(user)"> (tú)</template>
@@ -90,7 +97,7 @@ async function confirmToggle() {
               class="btn btn--chico"
               :class="{ 'btn--peligro': user.is_active }"
               :aria-label="`${user.is_active ? 'Desactivar' : 'Activar'} a ${user.full_name}`"
-              @click="toToggle = user"
+              @click="toggle.ask(user)"
             >
               {{ user.is_active ? 'Desactivar' : 'Activar' }}
             </button>
@@ -107,17 +114,14 @@ async function confirmToggle() {
       @saved="onSaved"
     />
     <ConfirmDialog
-      :open="toToggle !== null"
-      :title="toToggle?.is_active ? 'Desactivar usuario' : 'Activar usuario'"
-      :message="
-        toToggle?.is_active
-          ? `${toToggle?.full_name} no podrá entrar a la caja hasta que lo actives de nuevo.`
-          : `${toToggle?.full_name ?? ''} podrá volver a entrar a la caja.`
-      "
-      :confirm-label="toToggle?.is_active ? 'Desactivar usuario' : 'Activar usuario'"
-      :busy="isToggling"
-      @confirm="confirmToggle"
-      @cancel="toToggle = null"
+      :open="toggle.target.value !== null"
+      :title="toggleCopy.title"
+      :message="toggleCopy.message"
+      :confirm-label="toggleCopy.confirm"
+      :busy="toggle.isBusy.value"
+      :error="toggle.error.value"
+      @confirm="toggle.confirm"
+      @cancel="toggle.cancel"
     />
   </div>
 </template>
@@ -126,9 +130,6 @@ async function confirmToggle() {
 .usuarios {
   display: grid;
   gap: 1.1rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 .persona {
@@ -137,6 +138,11 @@ async function confirmToggle() {
   align-items: center;
   gap: 0.6rem 1.1rem;
   padding: 0.9rem 1.2rem;
+}
+
+.persona__texto {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .persona__nombre {
@@ -157,7 +163,7 @@ async function confirmToggle() {
     grid-template-columns: auto auto 1fr;
   }
 
-  .persona > div:first-child,
+  .persona__texto,
   .persona__acciones {
     grid-column: 1 / -1;
   }

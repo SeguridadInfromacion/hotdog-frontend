@@ -1,16 +1,22 @@
 <script setup>
 // Ventana modal sobre el elemento nativo <dialog>: el navegador se encarga de
 // atrapar el foco, cerrar con Escape y bloquear el resto de la página.
+// El foco inicial va al elemento del contenido marcado con "autofocus".
 import { onMounted, ref, useId, watch } from 'vue'
 
 const props = defineProps({
   open: { type: Boolean, required: true },
   title: { type: String, required: true },
+  // false mientras se guarda: ni Escape ni la X cierran a mitad de una operación.
+  closable: { type: Boolean, default: true },
+  // Los formularios lo apagan para no perder lo escrito por un clic afuera.
+  closeOnBackdrop: { type: Boolean, default: true },
 })
 const emit = defineEmits(['close'])
 
 const dialog = ref(null)
 const titleId = useId()
+let pressStartedOnBackdrop = false
 
 function sync() {
   const element = dialog.value
@@ -21,6 +27,23 @@ function sync() {
 
 onMounted(sync)
 watch(() => props.open, sync, { flush: 'post' })
+
+// Todas las formas de cerrar terminan en el evento nativo "close",
+// que es el único que avisa al componente padre.
+function requestClose() {
+  if (props.closable) dialog.value?.close()
+}
+
+function onEscape(event) {
+  if (!props.closable) event.preventDefault()
+}
+
+function onBackdropClick(event) {
+  // Solo cuenta un clic que empezó Y terminó en el fondo (no un arrastre
+  // que comenzó seleccionando texto dentro de un campo).
+  const endedOnBackdrop = event.target === dialog.value
+  if (props.closeOnBackdrop && pressStartedOnBackdrop && endedOnBackdrop) requestClose()
+}
 </script>
 
 <template>
@@ -29,12 +52,20 @@ watch(() => props.open, sync, { flush: 'post' })
     class="modal"
     :aria-labelledby="titleId"
     @close="emit('close')"
-    @click.self="emit('close')"
+    @cancel="onEscape"
+    @pointerdown="pressStartedOnBackdrop = $event.target === dialog"
+    @click="onBackdropClick"
   >
     <div class="modal__hoja">
       <header class="modal__cabecera">
         <h2 :id="titleId" class="modal__titulo">{{ title }}</h2>
-        <button type="button" class="modal__cerrar" aria-label="Cerrar" @click="emit('close')">
+        <button
+          type="button"
+          class="modal__cerrar"
+          aria-label="Cerrar"
+          :disabled="!closable"
+          @click="requestClose"
+        >
           <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
             <path
               d="M6 6l12 12M18 6L6 18"
@@ -60,6 +91,7 @@ watch(() => props.open, sync, { flush: 'post' })
   background: var(--papel);
   color: var(--tinta);
   box-shadow: 0 8px 0 var(--tinta);
+  overflow-wrap: anywhere;
 }
 
 .modal[open] {
@@ -99,8 +131,13 @@ watch(() => props.open, sync, { flush: 'post' })
   background: transparent;
 }
 
-.modal__cerrar:hover {
+.modal__cerrar:hover:not(:disabled) {
   background: var(--mostaza-clara);
+}
+
+.modal__cerrar:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @keyframes modal-entra {
